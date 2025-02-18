@@ -5,28 +5,42 @@ import os
 
 app = Flask(__name__)
 
-# 🔹 הגדרת מפתח API מהסביבה (עדיף מאשר בקובץ)
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
+# 🔹 Load OpenAI API Key from environment variables
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise ValueError("⚠ Missing OpenAI API Key. Set 'OPENAI_API_KEY' in environment variables.")
 
-# 🔹 פונקציה לשמירת הודעות במסד נתונים
-def save_message(session_id, role, content):
-    conn = sqlite3.connect("chat_history.db")
+# 🔹 Database Path (Store in /tmp/ for cloud hosting)
+DB_PATH = "/tmp/chat_history.db"
+
+# 🔹 Ensure Database Exists
+def initialize_database():
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("CREATE TABLE IF NOT EXISTS chat (session_id TEXT, role TEXT, content TEXT)")
+    conn.commit()
+    conn.close()
+
+initialize_database()  # ✅ Ensure database is initialized
+
+# 🔹 Function to Save Messages in Database
+def save_message(session_id, role, content):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
     cursor.execute("INSERT INTO chat VALUES (?, ?, ?)", (session_id, role, content))
     conn.commit()
     conn.close()
 
-# 🔹 פונקציה לשליפת הודעות קודמות
+# 🔹 Function to Retrieve Previous Messages
 def get_previous_messages(session_id, limit=5):
-    conn = sqlite3.connect("chat_history.db")
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute("SELECT role, content FROM chat WHERE session_id=? ORDER BY rowid DESC LIMIT ?", (session_id, limit))
     messages = [{"role": role, "content": content} for role, content in cursor.fetchall()]
     conn.close()
-    return messages[::-1]  # הופך את הסדר כדי שהתשובות יגיעו בצורה נכונה
+    return messages[::-1]  # Reverse order so messages are in correct sequence
 
-# 🔹 API שמבצע שליחה ל-GPT-4 Turbo באמצעות requests
+# 🔹 API Route to Handle GPT-4 Turbo Requests
 @app.route("/ask_gpt", methods=["POST"])
 def ask_gpt():
     try:
@@ -34,16 +48,16 @@ def ask_gpt():
         session_id = data.get("session_id", "default")
         user_message = data.get("message", "")
 
-        # שמירת הודעת המשתמש
+        # Save the user's message
         save_message(session_id, "user", user_message)
 
-        # שליפת היסטוריה אחרונה
+        # Retrieve conversation history
         history = get_previous_messages(session_id)
 
-        # יצירת ההודעה למודל
-        messages = [{"role": "system", "content": "אתה עוזר אישי חכם שמבוסס על שיחות קודמות."}] + history + [{"role": "user", "content": user_message}]
+        # Construct OpenAI message payload
+        messages = [{"role": "system", "content": "You are a helpful assistant that remembers previous messages."}] + history + [{"role": "user", "content": user_message}]
 
-        # ✅ שליחת הבקשה ל-OpenAI API באמצעות requests
+        # 🔹 Send Request to OpenAI API
         headers = {
             "Authorization": f"Bearer {OPENAI_API_KEY}",
             "Content-Type": "application/json"
@@ -52,17 +66,26 @@ def ask_gpt():
             "model": "gpt-4-turbo",
             "messages": messages
         }
-        
+
         response = requests.post("https://api.openai.com/v1/chat/completions", json=payload, headers=headers)
+
+        # ✅ Debugging: Print OpenAI API response
+        print("Status Code:", response.status_code)
+        print("Response Text:", response.text)
+
+        # ✅ Handle API errors
+        if response.status_code != 200:
+            return jsonify({"error": f"OpenAI API error: {response.text}"}), 500
+
         response_data = response.json()
 
-        # בדיקה אם התשובה התקבלה בהצלחה
+        # Check if a valid response was received
         if "choices" in response_data:
             reply = response_data["choices"][0]["message"]["content"]
         else:
-            reply = "שגיאה בקבלת תשובה מהמודל."
+            reply = "Error retrieving response from the model."
 
-        # שמירת תשובת ה-GPT במסד הנתונים
+        # Save GPT's response
         save_message(session_id, "assistant", reply)
 
         return jsonify({"reply": reply})
@@ -70,5 +93,7 @@ def ask_gpt():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+# ✅ Add a Home Route to Prevent 404 Errors
+@app.route("/")
+def home():
+    return "🚀 API is running!", 200
