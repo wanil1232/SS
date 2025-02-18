@@ -4,7 +4,7 @@ from flask import Flask, request, jsonify
 import sqlite3
 import os
 
-app = Flask(__name__)
+app = Flask(__name__) 
 
 # 🔹 הגדרת מפתח API מהסביבה (עדיף מאשר בקובץ)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
