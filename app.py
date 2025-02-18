@@ -1,3 +1,4 @@
+
 import requests
 from flask import Flask, request, jsonify
 import sqlite3
@@ -5,10 +6,10 @@ import os
 
 app = Flask(__name__)
 
-# 🔹 OpenAI API Key (Stored in Environment Variables)
+# 🔹 הגדרת מפתח API מהסביבה (עדיף מאשר בקובץ)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
 
-# 🔹 Function to Save Messages in SQLite Database
+# 🔹 פונקציה לשמירת הודעות במסד נתונים
 def save_message(session_id, role, content):
     conn = sqlite3.connect("chat_history.db")
     cursor = conn.cursor()
@@ -17,16 +18,16 @@ def save_message(session_id, role, content):
     conn.commit()
     conn.close()
 
-# 🔹 Function to Retrieve Previous Messages
+# 🔹 פונקציה לשליפת הודעות קודמות
 def get_previous_messages(session_id, limit=5):
     conn = sqlite3.connect("chat_history.db")
     cursor = conn.cursor()
     cursor.execute("SELECT role, content FROM chat WHERE session_id=? ORDER BY rowid DESC LIMIT ?", (session_id, limit))
     messages = [{"role": role, "content": content} for role, content in cursor.fetchall()]
     conn.close()
-    return messages[::-1]  # Reverse order so messages are in the correct sequence
+    return messages[::-1]  # הופך את הסדר כדי שהתשובות יגיעו בצורה נכונה
 
-# 🔹 API Route to Handle GPT-4 Turbo Requests
+# 🔹 API שמבצע שליחה ל-GPT-4 Turbo באמצעות requests
 @app.route("/ask_gpt", methods=["POST"])
 def ask_gpt():
     try:
@@ -34,16 +35,16 @@ def ask_gpt():
         session_id = data.get("session_id", "default")
         user_message = data.get("message", "")
 
-        # Save the user's message
+        # שמירת הודעת המשתמש
         save_message(session_id, "user", user_message)
 
-        # Retrieve the last few messages from the conversation
+        # שליפת היסטוריה אחרונה
         history = get_previous_messages(session_id)
 
-        # Construct the message payload for GPT-4 Turbo
-        messages = [{"role": "system", "content": "You are a helpful assistant that remembers previous messages."}] + history + [{"role": "user", "content": user_message}]
+        # יצירת ההודעה למודל
+        messages = [{"role": "system", "content": "אתה עוזר אישי חכם שמבוסס על שיחות קודמות."}] + history + [{"role": "user", "content": user_message}]
 
-        # 🔹 Send Request to OpenAI API
+        # ✅ שליחת הבקשה ל-OpenAI API באמצעות requests
         headers = {
             "Authorization": f"Bearer {OPENAI_API_KEY}",
             "Content-Type": "application/json"
@@ -56,13 +57,13 @@ def ask_gpt():
         response = requests.post("https://api.openai.com/v1/chat/completions", json=payload, headers=headers)
         response_data = response.json()
 
-        # Check if a valid response was received
+        # בדיקה אם התשובה התקבלה בהצלחה
         if "choices" in response_data:
             reply = response_data["choices"][0]["message"]["content"]
         else:
-            reply = "Error retrieving response from the model."
+            reply = "שגיאה בקבלת תשובה מהמודל."
 
-        # Save GPT's response to the database
+        # שמירת תשובת ה-GPT במסד הנתונים
         save_message(session_id, "assistant", reply)
 
         return jsonify({"reply": reply})
