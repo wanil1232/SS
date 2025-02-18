@@ -6,7 +6,7 @@ import os
 app = Flask(__name__)
 
 # 🔹 OpenAI API Key (Stored in Environment Variables)
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "your_openai_api_key_here")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
 
 # 🔹 Function to Save Messages in SQLite Database
 def save_message(session_id, role, content):
