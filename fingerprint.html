@@ -1,26 +1,34 @@
-
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <title>FingerprintJS Example</title>
-
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+    #visitorId {
+      font-weight: bold;
+      color: green;
+      font-size: 20px;
+    }
+  </style>
 </head>
 <body>
-    <script>
-        // Initialize the agent on page load.
-        const fpPromise = import('https://fpjscdn.net/v3/A4t9QOUpmyCYYLwaoANu')
-          .then(FingerprintJS => FingerprintJS.load({
-            region: "eu"
-          }))
-      
-        // Get the visitorId when you need it.
-        fpPromise
-          .then(fp => fp.get())
-          .then(result => {
-            const visitorId = result.visitorId
-            console.log(visitorId)
-          })
-      </script>
+  <h2>Getting your device ID...</h2>
+  <p>Your device ID is: <span id="visitorId">Loading...</span></p>
+
+  <script>
+    const fpPromise = import('https://fpjscdn.net/v3/A4t9QOUpmyCYYLwaoANu')
+      .then(FingerprintJS => FingerprintJS.load({ region: "eu" }))
+
+    fpPromise
+      .then(fp => fp.get())
+      .then(result => {
+        const visitorId = result.visitorId;
+        document.getElementById("visitorId").textContent = visitorId;
+      });
+  </script>
 </body>
 </html>
